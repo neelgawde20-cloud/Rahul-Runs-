@@ -1,0 +1,630 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Rahul Runs — KM Tracker</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <style>
+    :root {
+      --bg:        #0a0a0f;
+      --surface:   #12121a;
+      --card:      rgba(255,255,255,0.04);
+      --border:    rgba(255,255,255,0.08);
+      --neon:      #c8ff00;
+      --neon2:     #ff3cac;
+      --neon3:     #00d4ff;
+      --gold:      #ffd700;
+      --text:      #f0f0f0;
+      --muted:     #6b6b80;
+      --radius:    16px;
+    }
+
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: 'Inter', sans-serif;
+      min-height: 100vh;
+      overflow-x: hidden;
+    }
+
+    /* ── Ambient glow blobs ── */
+    body::before, body::after {
+      content: '';
+      position: fixed;
+      border-radius: 50%;
+      filter: blur(120px);
+      opacity: 0.18;
+      pointer-events: none;
+      z-index: 0;
+    }
+    body::before {
+      width: 600px; height: 600px;
+      background: var(--neon);
+      top: -200px; left: -200px;
+    }
+    body::after {
+      width: 500px; height: 500px;
+      background: var(--neon2);
+      bottom: -150px; right: -150px;
+    }
+
+    #app { position: relative; z-index: 1; max-width: 900px; margin: 0 auto; padding: 28px 20px 60px; }
+
+    /* ── Header ── */
+    header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 40px;
+      flex-wrap: wrap;
+      gap: 12px;
+    }
+    .logo-block { display: flex; flex-direction: column; }
+    .logo-block .name {
+      font-family: 'Space Grotesk', sans-serif;
+      font-size: 2rem;
+      font-weight: 700;
+      letter-spacing: -0.5px;
+    }
+    .logo-block .name span {
+      background: linear-gradient(90deg, var(--neon), var(--neon3));
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+    .logo-block .tagline { color: var(--muted); font-size: 0.8rem; font-weight: 500; letter-spacing: 2px; text-transform: uppercase; margin-top: 2px; }
+
+    .streak-pill {
+      background: linear-gradient(135deg, var(--neon2), var(--neon3));
+      color: #fff;
+      font-weight: 700;
+      font-size: 0.78rem;
+      padding: 6px 14px;
+      border-radius: 999px;
+      letter-spacing: 0.5px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    /* ── Stat grid ── */
+    .stats-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+      gap: 14px;
+      margin-bottom: 32px;
+    }
+    .stat-card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 20px 18px;
+      backdrop-filter: blur(12px);
+      position: relative;
+      overflow: hidden;
+      transition: transform .2s, box-shadow .2s;
+    }
+    .stat-card:hover { transform: translateY(-3px); box-shadow: 0 12px 40px rgba(0,0,0,0.4); }
+    .stat-card::before {
+      content: '';
+      position: absolute;
+      top: 0; left: 0; right: 0;
+      height: 2px;
+      background: var(--accent, var(--neon));
+    }
+    .stat-card .label { font-size: 0.7rem; font-weight: 600; letter-spacing: 1.5px; text-transform: uppercase; color: var(--muted); margin-bottom: 8px; }
+    .stat-card .value {
+      font-family: 'Space Grotesk', sans-serif;
+      font-size: 2rem;
+      font-weight: 700;
+      line-height: 1;
+      color: var(--accent, var(--neon));
+    }
+    .stat-card .unit { font-size: 0.8rem; color: var(--muted); margin-top: 4px; }
+
+    /* ── Progress bars ── */
+    .goals-section {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 22px;
+      margin-bottom: 32px;
+      backdrop-filter: blur(12px);
+    }
+    .goals-section h2 { font-size: 0.75rem; font-weight: 600; letter-spacing: 2px; text-transform: uppercase; color: var(--muted); margin-bottom: 18px; }
+    .goal-row { margin-bottom: 16px; }
+    .goal-row:last-child { margin-bottom: 0; }
+    .goal-meta { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 8px; }
+    .goal-name { font-weight: 600; font-size: 0.9rem; }
+    .goal-num { font-size: 0.8rem; color: var(--muted); }
+    .bar-track {
+      height: 6px;
+      background: rgba(255,255,255,0.06);
+      border-radius: 999px;
+      overflow: hidden;
+    }
+    .bar-fill {
+      height: 100%;
+      border-radius: 999px;
+      transition: width 0.8s cubic-bezier(.22,1,.36,1);
+    }
+
+    /* ── Two-column layout ── */
+    .main-cols {
+      display: grid;
+      grid-template-columns: 1fr 1.2fr;
+      gap: 24px;
+      align-items: start;
+    }
+    @media (max-width: 640px) { .main-cols { grid-template-columns: 1fr; } }
+
+    /* ── Form card ── */
+    .form-card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 24px;
+      backdrop-filter: blur(12px);
+    }
+    .form-card h2 { font-size: 0.75rem; font-weight: 600; letter-spacing: 2px; text-transform: uppercase; color: var(--muted); margin-bottom: 18px; }
+
+    .field { margin-bottom: 14px; }
+    .field label { display: block; font-size: 0.75rem; font-weight: 600; color: var(--muted); letter-spacing: 0.5px; margin-bottom: 6px; }
+    .field input, .field select, .field textarea {
+      width: 100%;
+      background: rgba(255,255,255,0.05);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      color: var(--text);
+      font-family: inherit;
+      font-size: 0.9rem;
+      padding: 10px 12px;
+      outline: none;
+      transition: border-color .2s, box-shadow .2s;
+    }
+    .field input:focus, .field select:focus, .field textarea:focus {
+      border-color: var(--neon);
+      box-shadow: 0 0 0 3px rgba(200,255,0,0.1);
+    }
+    .field input[type=date]::-webkit-calendar-picker-indicator { filter: invert(1) opacity(0.4); }
+    .field textarea { resize: vertical; min-height: 70px; }
+    .field select option { background: #1a1a24; }
+
+    .row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+
+    .btn-add {
+      width: 100%;
+      padding: 13px;
+      border: none;
+      border-radius: 10px;
+      background: linear-gradient(135deg, var(--neon) 0%, #90e000 100%);
+      color: #0a0a0f;
+      font-family: 'Space Grotesk', sans-serif;
+      font-size: 0.95rem;
+      font-weight: 700;
+      cursor: pointer;
+      letter-spacing: 0.5px;
+      transition: transform .15s, box-shadow .15s;
+      margin-top: 6px;
+    }
+    .btn-add:hover { transform: translateY(-2px); box-shadow: 0 8px 24px rgba(200,255,0,0.3); }
+    .btn-add:active { transform: translateY(0); }
+
+    /* ── Run history ── */
+    .history-card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 24px;
+      backdrop-filter: blur(12px);
+    }
+    .history-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; }
+    .history-header h2 { font-size: 0.75rem; font-weight: 600; letter-spacing: 2px; text-transform: uppercase; color: var(--muted); }
+    .filter-btn {
+      background: transparent;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      color: var(--muted);
+      font-family: inherit;
+      font-size: 0.75rem;
+      padding: 5px 10px;
+      cursor: pointer;
+      transition: all .2s;
+    }
+    .filter-btn.active, .filter-btn:hover { border-color: var(--neon); color: var(--neon); }
+
+    .run-list { display: flex; flex-direction: column; gap: 10px; max-height: 480px; overflow-y: auto; padding-right: 4px; }
+    .run-list::-webkit-scrollbar { width: 4px; }
+    .run-list::-webkit-scrollbar-track { background: transparent; }
+    .run-list::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+
+    .run-item {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      background: rgba(255,255,255,0.03);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 14px 16px;
+      transition: background .2s, transform .15s;
+      position: relative;
+    }
+    .run-item:hover { background: rgba(255,255,255,0.06); transform: translateX(2px); }
+    .run-item .run-icon {
+      width: 40px; height: 40px;
+      border-radius: 10px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 1.2rem;
+      flex-shrink: 0;
+    }
+    .run-item .run-details { flex: 1; min-width: 0; }
+    .run-item .run-date { font-size: 0.7rem; color: var(--muted); letter-spacing: 0.5px; }
+    .run-item .run-note { font-size: 0.75rem; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-top: 2px; }
+    .run-item .run-km {
+      font-family: 'Space Grotesk', sans-serif;
+      font-size: 1.3rem;
+      font-weight: 700;
+      flex-shrink: 0;
+    }
+    .run-item .run-sub { font-size: 0.7rem; color: var(--muted); text-align: right; }
+    .run-item .del-btn {
+      background: none;
+      border: none;
+      color: var(--muted);
+      font-size: 1rem;
+      cursor: pointer;
+      opacity: 0;
+      transition: opacity .2s, color .2s;
+      padding: 4px;
+      line-height: 1;
+    }
+    .run-item:hover .del-btn { opacity: 1; }
+    .run-item .del-btn:hover { color: var(--neon2); }
+
+    .empty-state { text-align: center; padding: 40px 20px; color: var(--muted); }
+    .empty-state .icon { font-size: 2.5rem; margin-bottom: 10px; }
+    .empty-state p { font-size: 0.85rem; line-height: 1.6; }
+
+    /* ── Toast ── */
+    #toast {
+      position: fixed;
+      bottom: 28px;
+      left: 50%;
+      transform: translateX(-50%) translateY(80px);
+      background: var(--neon);
+      color: #0a0a0f;
+      font-weight: 700;
+      font-size: 0.85rem;
+      padding: 10px 22px;
+      border-radius: 999px;
+      z-index: 999;
+      transition: transform .35s cubic-bezier(.22,1,.36,1);
+      pointer-events: none;
+      white-space: nowrap;
+    }
+    #toast.show { transform: translateX(-50%) translateY(0); }
+
+    /* ── Animations ── */
+    @keyframes fadeUp {
+      from { opacity: 0; transform: translateY(16px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+    @keyframes shake {
+      0%,100%{transform:translateX(0)}
+      20%{transform:translateX(-6px)}
+      40%{transform:translateX(6px)}
+      60%{transform:translateX(-4px)}
+      80%{transform:translateX(4px)}
+    }
+    .stat-card, .goals-section, .form-card, .history-card {
+      animation: fadeUp .5s ease both;
+    }
+    .stat-card:nth-child(1) { animation-delay: .05s; }
+    .stat-card:nth-child(2) { animation-delay: .10s; }
+    .stat-card:nth-child(3) { animation-delay: .15s; }
+    .stat-card:nth-child(4) { animation-delay: .20s; }
+  </style>
+</head>
+<body>
+<div id="app">
+
+  <!-- Header -->
+  <header>
+    <div class="logo-block">
+      <div class="name">Rahul <span>Runs</span></div>
+      <div class="tagline">Kilometre Tracker &middot; Ultra Edition</div>
+    </div>
+    <div class="streak-pill" id="streakPill">🔥 <span id="streakCount">0</span> day streak</div>
+  </header>
+
+  <!-- Stats -->
+  <div class="stats-grid">
+    <div class="stat-card" style="--accent: var(--neon)">
+      <div class="label">Total KM</div>
+      <div class="value" id="statTotal">0</div>
+      <div class="unit">kilometres logged</div>
+    </div>
+    <div class="stat-card" style="--accent: var(--neon3)">
+      <div class="label">This Month</div>
+      <div class="value" id="statMonth">0</div>
+      <div class="unit">km in <span id="statMonthName">—</span></div>
+    </div>
+    <div class="stat-card" style="--accent: var(--neon2)">
+      <div class="label">Longest Run</div>
+      <div class="value" id="statLongest">0</div>
+      <div class="unit">km personal best</div>
+    </div>
+    <div class="stat-card" style="--accent: var(--gold)">
+      <div class="label">Total Runs</div>
+      <div class="value" id="statRuns">0</div>
+      <div class="unit">sessions logged</div>
+    </div>
+  </div>
+
+  <!-- Goal Progress -->
+  <div class="goals-section">
+    <h2>Race Goals — Progress</h2>
+    <div class="goal-row">
+      <div class="goal-meta">
+        <span class="goal-name">🏅 Half Marathon (21.1 km)</span>
+        <span class="goal-num" id="halfPct">—</span>
+      </div>
+      <div class="bar-track"><div class="bar-fill" id="halfBar" style="width:0%;background:linear-gradient(90deg,var(--neon3),var(--neon))"></div></div>
+    </div>
+    <div class="goal-row">
+      <div class="goal-meta">
+        <span class="goal-name">🏆 Marathon (42.2 km)</span>
+        <span class="goal-num" id="marathonPct">—</span>
+      </div>
+      <div class="bar-track"><div class="bar-fill" id="marathonBar" style="width:0%;background:linear-gradient(90deg,var(--gold),var(--neon2))"></div></div>
+    </div>
+    <div class="goal-row">
+      <div class="goal-meta">
+        <span class="goal-name">⚡ Ultra Goal (100 km this month)</span>
+        <span class="goal-num" id="ultraPct">—</span>
+      </div>
+      <div class="bar-track"><div class="bar-fill" id="ultraBar" style="width:0%;background:linear-gradient(90deg,var(--neon2),#7c00ff)"></div></div>
+    </div>
+  </div>
+
+  <!-- Main two-column -->
+  <div class="main-cols">
+
+    <!-- Add Run Form -->
+    <div class="form-card">
+      <h2>Log a Run</h2>
+      <div class="field">
+        <label>Date</label>
+        <input type="date" id="fDate" />
+      </div>
+      <div class="row2">
+        <div class="field">
+          <label>Distance (km)</label>
+          <input type="number" id="fKm" placeholder="21.1" min="0.1" step="0.01" />
+        </div>
+        <div class="field">
+          <label>Duration</label>
+          <input type="text" id="fTime" placeholder="1h 45m" />
+        </div>
+      </div>
+      <div class="field">
+        <label>Run Type</label>
+        <select id="fType">
+          <option value="easy">🟢 Easy Run</option>
+          <option value="tempo">🟡 Tempo</option>
+          <option value="long">🔵 Long Run</option>
+          <option value="race">🏅 Race</option>
+          <option value="ultra">⚡ Ultra</option>
+          <option value="trail">🌲 Trail</option>
+          <option value="interval">🔴 Interval</option>
+        </select>
+      </div>
+      <div class="field">
+        <label>Notes (optional)</label>
+        <textarea id="fNote" placeholder="How did it go? Legs? Weather?"></textarea>
+      </div>
+      <button class="btn-add" onclick="addRun()">+ Log This Run</button>
+    </div>
+
+    <!-- History -->
+    <div class="history-card">
+      <div class="history-header">
+        <h2>Run History</h2>
+        <div style="display:flex;gap:6px">
+          <button class="filter-btn active" id="fAll"   onclick="setFilter('all')">All</button>
+          <button class="filter-btn"        id="fMonth" onclick="setFilter('month')">Month</button>
+          <button class="filter-btn"        id="fRace"  onclick="setFilter('race')">Race</button>
+        </div>
+      </div>
+      <div class="run-list" id="runList">
+        <div class="empty-state">
+          <div class="icon">👟</div>
+          <p>No runs logged yet.<br/>Add your first kilometre above!</p>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<div id="toast">Run logged! 🚀</div>
+
+<script>
+  const STORE = 'rahul_runs_v1';
+  let runs = JSON.parse(localStorage.getItem(STORE) || '[]');
+  let filter = 'all';
+
+  const typeMap = {
+    easy:     { icon:'🟢', label:'Easy Run',  color:'#00c96b' },
+    tempo:    { icon:'🟡', label:'Tempo',      color:'#ffd700' },
+    long:     { icon:'🔵', label:'Long Run',   color:'#00d4ff' },
+    race:     { icon:'🏅', label:'Race',       color:'#ff3cac' },
+    ultra:    { icon:'⚡', label:'Ultra',      color:'#c8ff00' },
+    trail:    { icon:'🌲', label:'Trail',      color:'#7dde92' },
+    interval: { icon:'🔴', label:'Interval',   color:'#ff6b6b' },
+  };
+
+  document.addEventListener('DOMContentLoaded', () => {
+    document.getElementById('fDate').value = new Date().toISOString().split('T')[0];
+    render();
+  });
+
+  function addRun() {
+    const km   = parseFloat(document.getElementById('fKm').value);
+    const date = document.getElementById('fDate').value;
+    if (!km || km <= 0) { shake('fKm'); return; }
+    if (!date)          { shake('fDate'); return; }
+
+    const run = {
+      id:   Date.now(),
+      date,
+      km:   +km.toFixed(2),
+      time: document.getElementById('fTime').value.trim(),
+      type: document.getElementById('fType').value,
+      note: document.getElementById('fNote').value.trim(),
+    };
+
+    runs.unshift(run);
+    save();
+    render();
+    toast('Run logged! 🚀');
+    document.getElementById('fKm').value   = '';
+    document.getElementById('fTime').value = '';
+    document.getElementById('fNote').value = '';
+  }
+
+  function shake(id) {
+    const el = document.getElementById(id);
+    el.style.borderColor = 'var(--neon2)';
+    el.style.animation   = 'shake .3s ease';
+    setTimeout(() => { el.style.borderColor = ''; el.style.animation = ''; }, 600);
+  }
+
+  function setFilter(f) {
+    filter = f;
+    ['fAll','fMonth','fRace'].forEach(id => document.getElementById(id).classList.remove('active'));
+    ({ all:'fAll', month:'fMonth', race:'fRace' });
+    const ids = { all:'fAll', month:'fMonth', race:'fRace' };
+    document.getElementById(ids[f]).classList.add('active');
+    renderList();
+  }
+
+  function render() {
+    renderStats();
+    renderGoals();
+    renderStreak();
+    renderList();
+  }
+
+  function renderStats() {
+    const now   = new Date();
+    const month = now.getMonth();
+    const year  = now.getFullYear();
+
+    const total   = runs.reduce((s,r) => s + r.km, 0);
+    const monthly = runs.filter(r => {
+      const d = new Date(r.date);
+      return d.getMonth() === month && d.getFullYear() === year;
+    }).reduce((s,r) => s + r.km, 0);
+    const longest = runs.length ? Math.max(...runs.map(r => r.km)) : 0;
+
+    document.getElementById('statTotal').textContent   = fmt(total);
+    document.getElementById('statMonth').textContent   = fmt(monthly);
+    document.getElementById('statLongest').textContent = fmt(longest);
+    document.getElementById('statRuns').textContent    = runs.length;
+    document.getElementById('statMonthName').textContent = now.toLocaleString('default',{month:'long'});
+    window._monthly = monthly;
+  }
+
+  function renderGoals() {
+    const longest = runs.length ? Math.max(...runs.map(r => r.km)) : 0;
+    const monthly = window._monthly || 0;
+    setBar('halfBar',    'halfPct',    longest, 21.1, 'km best');
+    setBar('marathonBar','marathonPct',longest, 42.2, 'km best');
+    setBar('ultraBar',   'ultraPct',   monthly, 100,  'km this month');
+  }
+
+  function setBar(barId, pctId, val, goal, suffix) {
+    const pct = Math.min(100, (val / goal) * 100);
+    document.getElementById(barId).style.width = pct + '%';
+    document.getElementById(pctId).textContent = fmt(val) + ' / ' + goal + ' ' + suffix;
+  }
+
+  function renderStreak() {
+    if (!runs.length) { document.getElementById('streakCount').textContent = '0'; return; }
+    const dates = [...new Set(runs.map(r => r.date))].sort().reverse();
+    let streak = 0;
+    let cur = new Date(); cur.setHours(0,0,0,0);
+    for (const d of dates) {
+      const rd = new Date(d); rd.setHours(0,0,0,0);
+      const diff = Math.round((cur - rd) / 86400000);
+      if (diff === 0 || diff === 1) { streak++; cur = rd; }
+      else break;
+    }
+    document.getElementById('streakCount').textContent = streak;
+  }
+
+  function renderList() {
+    const list = document.getElementById('runList');
+    const now  = new Date();
+    let filtered = runs.slice();
+
+    if (filter === 'month') {
+      filtered = filtered.filter(r => {
+        const d = new Date(r.date);
+        return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
+      });
+    } else if (filter === 'race') {
+      filtered = filtered.filter(r => r.type === 'race' || r.type === 'ultra');
+    }
+
+    if (!filtered.length) {
+      list.innerHTML = `<div class="empty-state"><div class="icon">👟</div><p>${filter==='all'?'No runs logged yet.<br/>Add your first kilometre above!':'No runs match this filter.'}</p></div>`;
+      return;
+    }
+
+    list.innerHTML = filtered.map(r => {
+      const t  = typeMap[r.type] || typeMap.easy;
+      const dt = new Date(r.date + 'T12:00:00');
+      const ds = dt.toLocaleDateString('en-GB',{day:'numeric',month:'short',year:'numeric'});
+      return `
+        <div class="run-item">
+          <div class="run-icon" style="background:${t.color}22;color:${t.color}">${t.icon}</div>
+          <div class="run-details">
+            <div style="font-weight:600;font-size:.85rem">${t.label}</div>
+            <div class="run-date">${ds}${r.time ? ' · ' + r.time : ''}</div>
+            ${r.note ? `<div class="run-note">${escHtml(r.note)}</div>` : ''}
+          </div>
+          <div>
+            <div class="run-km" style="color:${t.color}">${fmt(r.km)}</div>
+            <div class="run-sub">km</div>
+          </div>
+          <button class="del-btn" onclick="deleteRun(${r.id})">✕</button>
+        </div>`;
+    }).join('');
+  }
+
+  function deleteRun(id) {
+    runs = runs.filter(r => r.id !== id);
+    save();
+    render();
+    toast('Run removed');
+  }
+
+  function save()  { localStorage.setItem(STORE, JSON.stringify(runs)); }
+  function fmt(n)  { return Number(n).toLocaleString('en',{minimumFractionDigits: n%1?1:0, maximumFractionDigits:1}); }
+  function escHtml(s) { return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+
+  let toastTimer;
+  function toast(msg) {
+    const el = document.getElementById('toast');
+    el.textContent = msg;
+    el.classList.add('show');
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => el.classList.remove('show'), 2400);
+  }
+</script>
+</body>
+</html>
